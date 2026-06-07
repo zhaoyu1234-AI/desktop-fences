@@ -28,3 +28,24 @@ export interface Fence {
   icon_size: number;
   columns: number;
 }
+
+export interface DiskMapping {
+  id: string;
+  name: string;
+  path: string;
+  icon: string;
+}
+
+export interface RecentDocument {
+  id: string;
+  name: string;
+  path: string;
+  opened_at: string;
+  file_type: string;
+}
+
+export interface CategoryInfo {
+  icon: string;
+  color: string;
+  count: number;
+}

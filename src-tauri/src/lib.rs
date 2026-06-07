@@ -2,8 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::Manager;
 
+mod auto_classifier;
 mod db;
+mod desktop_features;
 mod desktop_scanner;
+mod disk_mapper;
 mod fence_manager;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -40,10 +43,36 @@ pub struct Fence {
     pub columns: i32,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DiskMapping {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub icon: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RecentDocument {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub opened_at: String,
+    pub file_type: String,
+}
+
+// ==================== 桌面图标命令 ====================
+
 #[tauri::command]
 fn scan_desktop_icons() -> Result<Vec<DesktopIcon>, String> {
     desktop_scanner::scan_desktop()
 }
+
+#[tauri::command]
+fn get_icon_base64(path: String) -> Result<String, String> {
+    desktop_scanner::get_icon_base64(&path)
+}
+
+// ==================== 分区管理命令 ====================
 
 #[tauri::command]
 fn get_fences() -> Result<Vec<Fence>, String> {
@@ -75,15 +104,14 @@ fn remove_icon_from_fence(icon_id: String) -> Result<(), String> {
     fence_manager::remove_icon_from_fence(&icon_id)
 }
 
+// ==================== 启动命令 ====================
+
 #[tauri::command]
 fn launch_icon(path: String) -> Result<(), String> {
     open::that(&path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-fn get_icon_base64(path: String) -> Result<String, String> {
-    desktop_scanner::get_icon_base64(&path)
-}
+// ==================== 窗口控制命令 ====================
 
 #[tauri::command]
 fn toggle_window(app: tauri::AppHandle) {
@@ -97,15 +125,106 @@ fn toggle_window(app: tauri::AppHandle) {
     }
 }
 
+// ==================== 自动分类命令 ====================
+
+#[tauri::command]
+fn auto_classify_icons(icons: Vec<DesktopIcon>) -> std::collections::HashMap<String, Vec<String>> {
+    auto_classifier::auto_classify(&icons)
+}
+
+#[tauri::command]
+fn get_category_info(category: String) -> (String, String) {
+    auto_classifier::get_category_info(&category)
+}
+
+#[tauri::command]
+fn get_recent_files(icons: Vec<DesktopIcon>, limit: usize) -> Vec<String> {
+    auto_classifier::get_recent_files(&icons, limit)
+}
+
+// ==================== 磁盘映射命令 ====================
+
+#[tauri::command]
+fn get_system_drives() -> Vec<DiskMapping> {
+    disk_mapper::get_system_drives()
+}
+
+#[tauri::command]
+fn get_common_directories() -> Vec<DiskMapping> {
+    disk_mapper::get_common_directories()
+}
+
+#[tauri::command]
+fn list_directory(path: String) -> Result<Vec<DesktopIcon>, String> {
+    disk_mapper::list_directory(&path)
+}
+
+// ==================== 最近文档命令 ====================
+
+#[tauri::command]
+fn get_recent_documents() -> Vec<RecentDocument> {
+    // 从数据库获取最近文档
+    Vec::new()
+}
+
+#[tauri::command]
+fn add_recent_document(path: String) -> Result<(), String> {
+    // 添加到数据库
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_recent_documents() -> Result<(), String> {
+    // 清空数据库
+    Ok(())
+}
+
+// ==================== 一键整理命令 ====================
+
+#[tauri::command]
+fn auto_organize_desktop() -> Result<Vec<Fence>, String> {
+    let icons = desktop_scanner::scan_desktop()?;
+    let categories = auto_classifier::auto_classify(&icons);
+
+    let mut fences = Vec::new();
+
+    for (category, icon_ids) in categories {
+        if icon_ids.is_empty() {
+            continue;
+        }
+
+        let (icon, color) = auto_classifier::get_category_info(&category);
+
+        let fence = fence_manager::create_fence(
+            category,
+            100.0,
+            100.0,
+            300.0,
+            400.0,
+        )?;
+
+        // 移动图标到分区
+        for icon_id in icon_ids {
+            let _ = fence_manager::move_icon_to_fence(&icon_id, &fence.id, Position { x: 0.0, y: 0.0 });
+        }
+
+        fences.push(fence);
+    }
+
+    Ok(fences)
+}
+
+// ==================== 窗口样式 ====================
+
 fn apply_window_style(window: &tauri::WebviewWindow) {
     #[cfg(target_os = "windows")]
     {
         use window_vibrancy::apply_acrylic;
-
-        // 应用 Acrylic 毛玻璃效果
         let _ = apply_acrylic(window, Some((20, 20, 30, 180)));
     }
 }
+
+// ==================== 应用入口 ====================
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -126,6 +245,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             scan_desktop_icons,
+            get_icon_base64,
             get_fences,
             create_fence,
             update_fence,
@@ -133,8 +253,17 @@ pub fn run() {
             move_icon_to_fence,
             remove_icon_from_fence,
             launch_icon,
-            get_icon_base64,
-            toggle_window
+            toggle_window,
+            auto_classify_icons,
+            get_category_info,
+            get_recent_files,
+            get_system_drives,
+            get_common_directories,
+            list_directory,
+            get_recent_documents,
+            add_recent_document,
+            clear_recent_documents,
+            auto_organize_desktop
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
