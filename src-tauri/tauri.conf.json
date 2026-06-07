@@ -12,14 +12,16 @@
     "windows": [
       {
         "title": "桌面整理大师",
-        "width": 1200,
-        "height": 800,
-        "resizable": true,
+        "width": 1920,
+        "height": 1080,
+        "resizable": false,
         "fullscreen": false,
-        "decorations": true,
-        "transparent": false,
+        "decorations": false,
+        "transparent": true,
         "alwaysOnTop": false,
-        "skipTaskbar": false
+        "skipTaskbar": true,
+        "x": 0,
+        "y": 0
       }
     ],
     "security": {
