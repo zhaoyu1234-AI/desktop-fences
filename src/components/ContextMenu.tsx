@@ -1,37 +1,18 @@
 import { motion } from "framer-motion";
-import { Trash2, FolderOpen, Copy, Scissors, RefreshCw } from "lucide-react";
-import { useStore } from "../store";
+import { Plus, FolderOpen, FileText, Wand2, Image, Settings, LogOut, Search, Clock, Lock } from "lucide-react";
 
 interface ContextMenuProps {
   x: number;
   y: number;
-  iconId?: string;
   fenceId?: string;
+  onCreateFence: () => void;
+  onDeleteFence: (id: string) => void;
 }
 
-export function ContextMenu({ x, y, iconId, fenceId }: ContextMenuProps) {
-  const { removeIconFromFence, deleteFence, loadIcons, setContextMenu } = useStore();
-
-  const handleAction = (action: string) => {
-    setContextMenu(null);
-
-    switch (action) {
-      case "remove-icon":
-        if (iconId) removeIconFromFence(iconId);
-        break;
-      case "delete-fence":
-        if (fenceId) deleteFence(fenceId);
-        break;
-      case "refresh":
-        loadIcons();
-        break;
-    }
-  };
-
-  // 确保菜单不超出屏幕
+export function ContextMenu({ x, y, fenceId, onCreateFence, onDeleteFence }: ContextMenuProps) {
   const menuStyle = {
-    left: Math.min(x, window.innerWidth - 200),
-    top: Math.min(y, window.innerHeight - 300),
+    left: Math.min(x, window.innerWidth - 240),
+    top: Math.min(y, window.innerHeight - 400),
   };
 
   return (
@@ -43,55 +24,45 @@ export function ContextMenu({ x, y, iconId, fenceId }: ContextMenuProps) {
       style={menuStyle}
       onClick={(e) => e.stopPropagation()}
     >
-      {iconId && (
-        <>
-          <div className="context-menu-item" onClick={() => handleAction("open")}>
-            <FolderOpen className="w-4 h-4 inline mr-2" />
-            打开
-          </div>
-          <div className="context-menu-item" onClick={() => handleAction("copy")}>
-            <Copy className="w-4 h-4 inline mr-2" />
-            复制
-          </div>
-          <div className="context-menu-item" onClick={() => handleAction("cut")}>
-            <Scissors className="w-4 h-4 inline mr-2" />
-            剪切
-          </div>
-          <div className="context-menu-divider" />
-          <div className="context-menu-item" onClick={() => handleAction("remove-icon")}>
-            <Trash2 className="w-4 h-4 inline mr-2" />
-            从分区移除
-          </div>
-        </>
-      )}
-
-      {fenceId && !iconId && (
-        <>
-          <div className="context-menu-item" onClick={() => handleAction("rename")}>
-            重命名分区
-          </div>
-          <div className="context-menu-item" onClick={() => handleAction("settings")}>
-            分区设置
-          </div>
-          <div className="context-menu-divider" />
-          <div className="context-menu-item" onClick={() => handleAction("delete-fence")}>
-            <Trash2 className="w-4 h-4 inline mr-2" />
-            删除分区
-          </div>
-        </>
-      )}
-
-      {!iconId && !fenceId && (
-        <>
-          <div className="context-menu-item" onClick={() => handleAction("refresh")}>
-            <RefreshCw className="w-4 h-4 inline mr-2" />
-            刷新图标
-          </div>
-          <div className="context-menu-item" onClick={() => handleAction("new-fence")}>
-            新建分区
-          </div>
-        </>
-      )}
+      <div className="context-menu-item" onClick={onCreateFence}>
+        <Plus className="context-menu-icon" />
+        新建格子
+      </div>
+      <div className="context-menu-item">
+        <FolderOpen className="context-menu-icon" />
+        新建文件夹映射格子
+      </div>
+      <div className="context-menu-item">
+        <Clock className="context-menu-icon" />
+        开启最近文档
+      </div>
+      <div className="context-menu-divider" />
+      <div className="context-menu-item">
+        <Wand2 className="context-menu-icon" />
+        一键整理桌面
+      </div>
+      <div className="context-menu-item">
+        <Image className="context-menu-icon" />
+        壁纸中心
+      </div>
+      <div className="context-menu-divider" />
+      <div className="context-menu-item">
+        <Search className="context-menu-icon" />
+        显示搜索按钮
+      </div>
+      <div className="context-menu-item">
+        <Lock className="context-menu-icon" />
+        锁定格子位置
+      </div>
+      <div className="context-menu-divider" />
+      <div className="context-menu-item">
+        <Settings className="context-menu-icon" />
+        桌面设置
+      </div>
+      <div className="context-menu-item" onClick={() => window.close()}>
+        <LogOut className="context-menu-icon" />
+        退出桌面整理
+      </div>
     </motion.div>
   );
 }
