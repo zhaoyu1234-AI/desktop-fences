@@ -122,10 +122,6 @@ pub fn run() {
                 apply_window_style(&window);
             }
 
-            // 注册全局快捷键 Ctrl+Space
-            let app_handle = app.handle().clone();
-            app.plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
