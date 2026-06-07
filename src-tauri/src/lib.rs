@@ -85,14 +85,47 @@ fn get_icon_base64(path: String) -> Result<String, String> {
     desktop_scanner::get_icon_base64(&path)
 }
 
+#[tauri::command]
+fn toggle_window(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
+fn apply_window_style(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::apply_acrylic;
+
+        // 应用 Acrylic 毛玻璃效果
+        let _ = apply_acrylic(window, Some((20, 20, 30, 180)));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             let app_dir = app.path().app_data_dir().expect("failed to get app dir");
             fs::create_dir_all(&app_dir).ok();
             db::init_db(&app_dir).expect("failed to init database");
+
+            // 应用窗口样式
+            if let Some(window) = app.get_webview_window("main") {
+                apply_window_style(&window);
+            }
+
+            // 注册全局快捷键 Ctrl+Space
+            let app_handle = app.handle().clone();
+            app.plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -104,7 +137,8 @@ pub fn run() {
             move_icon_to_fence,
             remove_icon_from_fence,
             launch_icon,
-            get_icon_base64
+            get_icon_base64,
+            toggle_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
