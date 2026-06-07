@@ -86,42 +86,44 @@ fn get_icon_base64(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn embed_into_desktop() -> Result<(), String> {
+async fn set_window_as_desktop(window: tauri::Window) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::*;
         use windows::Win32::Foundation::*;
-        use windows::Win32::System::Threading::*;
-        use windows::Win32::UI::Shell::*;
 
         unsafe {
-            // 找到 Progman 窗口
+            // 获取窗口句柄
+            let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+            let hwnd = HWND(hwnd.0);
+
+            // 设置窗口样式
+            let style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+            SetWindowLongW(hwnd, GWL_EXSTYLE, (style | WS_EX_TOOLWINDOW as i32) & !WS_EX_APPWINDOW as i32);
+
+            // 设置窗口在最底层
+            SetWindowPos(
+                hwnd,
+                HWND_BOTTOM,
+                0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            ).map_err(|e| e.to_string())?;
+
+            // 找到桌面图标窗口并设置为父窗口
             let progman = FindWindowA("Progman\0", None);
-            if progman.is_invalid() {
-                return Err("Failed to find Progman window".to_string());
+            if !progman.is_invalid() {
+                // 发送消息创建 WorkerW 窗口
+                SendMessageA(progman, 0x052C, WPARAM(0), LPARAM(0));
+
+                // 枚举窗口找到 WorkerW
+                let mut workerw = HWND::default();
+                EnumWindows(Some(enum_windows_proc), LPARAM(&mut workerw as *mut HWND as isize));
+
+                if !workerw.is_invalid() {
+                    // 将我们的窗口设置为 WorkerW 的子窗口
+                    let _ = SetParent(hwnd, workerw);
+                }
             }
-
-            // 发送消息创建 WorkerW 窗口
-            let result = SendMessageA(progman, 0x052C, WPARAM(0), LPARAM(0));
-
-            // 枚举所有窗口，找到 WorkerW 窗口
-            let mut workerw = HWND::default();
-            EnumWindows(Some(enum_windows_proc), LPARAM(&mut workerw as *mut HWND as isize));
-
-            if workerw.is_invalid() {
-                return Err("Failed to find WorkerW window".to_string());
-            }
-
-            // 获取 WorkerW 窗口的设备上下文
-            let hdc = GetDC(workerw);
-            if hdc.is_invalid() {
-                return Err("Failed to get DC".to_string());
-            }
-
-            // 在这里可以绘制内容到桌面
-            // 但我们使用 Tauri 窗口，所以需要将窗口嵌入
-
-            ReleaseDC(workerw, hdc);
         }
     }
 
@@ -136,15 +138,14 @@ unsafe extern "system" fn enum_windows_proc(hwnd: windows::Win32::Foundation::HW
     let shell_dll_def_view = FindWindowExA(hwnd, None, "SHELLDLL_DefView\0", None);
 
     if !shell_dll_def_view.is_invalid() {
-        // 找到包含 SHELLDLL_DefView 的窗口，其兄弟窗口就是 WorkerW
         let sibling = FindWindowExA(None, hwnd, "WorkerW\0", None);
         if !sibling.is_invalid() {
             *workerw_ptr = sibling;
-            return windows::Win32::Foundation::BOOL(0); // 停止枚举
+            return windows::Win32::Foundation::BOOL(0);
         }
     }
 
-    windows::Win32::Foundation::BOOL(1) // 继续枚举
+    windows::Win32::Foundation::BOOL(1)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -155,15 +156,6 @@ pub fn run() {
             let app_dir = app.path().app_data_dir().expect("failed to get app dir");
             fs::create_dir_all(&app_dir).ok();
             db::init_db(&app_dir).expect("failed to init database");
-
-            // 尝试嵌入桌面
-            #[cfg(target_os = "windows")]
-            {
-                if let Err(e) = embed_into_desktop() {
-                    eprintln!("Failed to embed into desktop: {}", e);
-                }
-            }
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -175,7 +167,8 @@ pub fn run() {
             move_icon_to_fence,
             remove_icon_from_fence,
             launch_icon,
-            get_icon_base64
+            get_icon_base64,
+            set_window_as_desktop
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
