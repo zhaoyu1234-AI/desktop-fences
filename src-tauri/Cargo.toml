@@ -20,5 +20,3 @@ dirs = "5.0"
 uuid = { version = "1.11", features = ["v4"] }
 walkdir = "2.5"
 open = "5.3"
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }

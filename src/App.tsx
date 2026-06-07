@@ -24,8 +24,6 @@ function App() {
 
   useEffect(() => {
     loadData();
-    // 将窗口嵌入桌面
-    invoke("set_window_as_desktop").catch(console.error);
   }, []);
 
   async function loadData() {

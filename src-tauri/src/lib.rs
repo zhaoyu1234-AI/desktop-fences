@@ -85,69 +85,6 @@ fn get_icon_base64(path: String) -> Result<String, String> {
     desktop_scanner::get_icon_base64(&path)
 }
 
-#[tauri::command]
-async fn set_window_as_desktop(window: tauri::Window) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        use windows::Win32::UI::WindowsAndMessaging::*;
-        use windows::Win32::Foundation::*;
-
-        unsafe {
-            // 获取窗口句柄
-            let hwnd = window.hwnd().map_err(|e| e.to_string())?;
-            let hwnd = HWND(hwnd.0);
-
-            // 设置窗口样式
-            let style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-            SetWindowLongW(hwnd, GWL_EXSTYLE, (style | WS_EX_TOOLWINDOW as i32) & !WS_EX_APPWINDOW as i32);
-
-            // 设置窗口在最底层
-            SetWindowPos(
-                hwnd,
-                HWND_BOTTOM,
-                0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-            ).map_err(|e| e.to_string())?;
-
-            // 找到桌面图标窗口并设置为父窗口
-            let progman = FindWindowA("Progman\0", None);
-            if !progman.is_invalid() {
-                // 发送消息创建 WorkerW 窗口
-                SendMessageA(progman, 0x052C, WPARAM(0), LPARAM(0));
-
-                // 枚举窗口找到 WorkerW
-                let mut workerw = HWND::default();
-                EnumWindows(Some(enum_windows_proc), LPARAM(&mut workerw as *mut HWND as isize));
-
-                if !workerw.is_invalid() {
-                    // 将我们的窗口设置为 WorkerW 的子窗口
-                    let _ = SetParent(hwnd, workerw);
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-#[cfg(target_os = "windows")]
-unsafe extern "system" fn enum_windows_proc(hwnd: windows::Win32::Foundation::HWND, lparam: windows::Win32::Foundation::LPARAM) -> windows::Win32::Foundation::BOOL {
-    use windows::Win32::UI::WindowsAndMessaging::*;
-
-    let workerw_ptr = lparam.0 as *mut windows::Win32::Foundation::HWND;
-    let shell_dll_def_view = FindWindowExA(hwnd, None, "SHELLDLL_DefView\0", None);
-
-    if !shell_dll_def_view.is_invalid() {
-        let sibling = FindWindowExA(None, hwnd, "WorkerW\0", None);
-        if !sibling.is_invalid() {
-            *workerw_ptr = sibling;
-            return windows::Win32::Foundation::BOOL(0);
-        }
-    }
-
-    windows::Win32::Foundation::BOOL(1)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -167,8 +104,7 @@ pub fn run() {
             move_icon_to_fence,
             remove_icon_from_fence,
             launch_icon,
-            get_icon_base64,
-            set_window_as_desktop
+            get_icon_base64
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
